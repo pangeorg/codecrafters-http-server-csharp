@@ -15,7 +15,8 @@ while (true)
     _ = Task.Run(() => HandleClient(client));
 }
 
-static Task HandleClient(TcpClient client){
+static Task HandleClient(TcpClient client)
+{
     var stream = client.GetStream();
     byte[] buffer = new byte[1024];
     stream.Read(buffer, 0, buffer.Length);
@@ -25,8 +26,8 @@ static Task HandleClient(TcpClient client){
     {
         "/" => new Response(StatusCode.Ok, []),
         "/index.html" => new Response(StatusCode.Ok, []),
-        "/user-agent" => 
-            request.GetHeader("User-Agent") != null ? 
+        "/user-agent" =>
+            request.GetHeader("User-Agent") != null ?
             new Response(StatusCode.Ok, request.GetHeader("User-Agent")!.ToAsciiBytes()) :
             new Response(StatusCode.InternalServerError, []),
         var echo when Regex.IsMatch(echo, "/echo/.*") => new Response(StatusCode.Ok, request.Target.Split("/")[^1].ToAsciiBytes(), encoding: request.GetHeader("Accept-Encoding") ?? string.Empty),
@@ -41,23 +42,29 @@ static Task HandleClient(TcpClient client){
     return Task.CompletedTask;
 }
 
-static Response HandleFileRequest(Request request) {
+static Response HandleFileRequest(Request request)
+{
     var args = Environment.GetCommandLineArgs();
     string directory;
-    if (args.Length == 3) {
+    if (args.Length == 3)
+    {
         directory = args[2];
     }
-    else {
+    else
+    {
         directory = "./";
     }
     string filename = Path.Combine(directory, request.Target.Split("/")[^1]);
-    switch (request.Method) {
+    switch (request.Method)
+    {
         case "POST":
-            try {
+            try
+            {
                 File.WriteAllBytes(filename, request.Body);
                 return new(StatusCode.Created, [], contentType: "application/octet-stream");
             }
-            catch (Exception ex) {
+            catch (Exception ex)
+            {
                 return new(StatusCode.InternalServerError, ex.Message.ToAsciiBytes());
             }
         case "GET":
@@ -95,9 +102,11 @@ class Response(StatusCode status, byte[] body, string contentType = "text/plain"
     public string ContentType { get; } = contentType;
     public string Version { get; } = version;
     public string Encoding { get; } = encoding;
-    private string GetHeaders(){
+    private string GetHeaders()
+    {
         string prefix = $"Content-Type: {ContentType}\r\nContent-Length: {Body.Length}\r\n";
-        if (Encoding == "gzip") {
+        if (Encoding == "gzip")
+        {
             prefix += "Content-Encoding: gzip\r\n";
         }
         return prefix;
@@ -105,19 +114,26 @@ class Response(StatusCode status, byte[] body, string contentType = "text/plain"
     private string GetPrefix() => $"{Version} {(int)Status} {Status.GetDescription()}\r\n{GetHeaders()}\r\n";
     public override string ToString() => GetPrefix() + $"{System.Text.Encoding.ASCII.GetString(Body)}";
     public byte[] ToBytes() => [.. System.Text.Encoding.ASCII.GetBytes(GetPrefix()), .. EncodeBody()];
-    
-    private byte[] EncodeBody() {
-        switch (Encoding) {
-            case "gzip":
-                using (var stream = new MemoryStream()) {
-                    using (var gzip = new GZipStream(stream, CompressionMode.Compress)) {
-                        gzip.Write(Body, 0, Body.Length);
+
+    private byte[] EncodeBody()
+    {
+        string[] encodings = Encoding.Split(',');
+        foreach (string encoding in encodings)
+        {
+            switch (encoding)
+            {
+                case "gzip":
+                    using (var stream = new MemoryStream())
+                    {
+                        using (var gzip = new GZipStream(stream, CompressionMode.Compress))
+                        {
+                            gzip.Write(Body, 0, Body.Length);
+                        }
+                        return stream.ToArray();
                     }
-                    return stream.ToArray();
-                }
-            default:
-                return Body;
+            }
         }
+        return Body;
     }
 }
 
@@ -130,7 +146,8 @@ struct Request(string method, string target, string version, byte[] body)
     public byte[] Body { get; } = body;
     public void AddHeader(string key, string value) => Headers.Add(key, value);
     public void RemoveHeader(string key) => Headers.Remove(key);
-    public string? GetHeader(string key) {
+    public string? GetHeader(string key)
+    {
         Headers.TryGetValue(key.ToLower(), out var value);
         return value;
     }
@@ -146,14 +163,15 @@ struct Request(string method, string target, string version, byte[] body)
         var version = parts[2];
         var body = lines[^1].Trim().ToAsciiBytes();
         var request = new Request(method, target, version, body);
-        
-        for (int i = 1; i < lines.Length - 2; i++) {
+
+        for (int i = 1; i < lines.Length - 2; i++)
+        {
             string[] content = lines[i].Trim().Split(": ");
             string key = content[0];
             string value = content[1];
             request.AddHeader(key.ToLower(), value);
         }
-        
+
         return request;
     }
 }
