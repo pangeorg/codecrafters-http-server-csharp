@@ -43,18 +43,34 @@ static Task HandleClient(TcpClient client){
 static Response HandleFileRequest(Request request) {
     var directory = Environment.GetCommandLineArgs()[2];
     string filename = Path.Combine(directory, request.Target.Split("/")[^1]);
-    if (File.Exists(filename))
-    {
-        byte[] content = File.ReadAllBytes(filename);
-        return new(StatusCode.Ok, content, contentType: "application/octet-stream");
-    };
-    return new(StatusCode.NotFound, []);
+    switch (request.Method) {
+        case "POST":
+            try {
+                File.WriteAllBytes(filename, request.Body);
+                return new(StatusCode.Ok, []);
+            }
+            catch (Exception ex) {
+                return new(StatusCode.InternalServerError, ex.Message.ToAsciiBytes());
+            }
+        case "GET":
+            if (File.Exists(filename))
+            {
+                byte[] content = File.ReadAllBytes(filename);
+                return new(StatusCode.Ok, content, contentType: "application/octet-stream");
+            };
+            return new(StatusCode.NotFound, []);
+        default:
+            return new(StatusCode.NotFound, []);
+    }
 }
 
 enum StatusCode
 {
     [Description("OK")]
     Ok = 200,
+
+    [Description("Created")]
+    Created = 201,
 
     [Description("Not Found")]
     NotFound = 404,
@@ -75,12 +91,13 @@ class Response(StatusCode status, byte[] body, string contentType = "text/plain"
     public byte[] ToBytes() => Encoding.ASCII.GetBytes(GetPrefix()).Concat(Body).ToArray();
 }
 
-class Request(string method, string target, string version)
+struct Request(string method, string target, string version, byte[] body)
 {
     public Dictionary<string, string> Headers { get; private set; } = [];
     public string Method { get; } = method;
     public string Target { get; } = target;
     public string Version { get; } = version;
+    public byte[] Body { get; } = body;
     public void AddHeader(string key, string value) => Headers.Add(key, value);
     public void RemoveHeader(string key) => Headers.Remove(key);
     public string? GetHeader(string key) {
@@ -96,7 +113,8 @@ class Request(string method, string target, string version)
         var method = parts[0];
         var target = parts[1];
         var version = parts[2];
-        var request = new Request(method, target, version);
+        var body = lines[^1].ToAsciiBytes();
+        var request = new Request(method, target, version, body);
         
         for (int i = 1; i < lines.Length - 2; i++) {
             string[] content = lines[i].Trim().Split(": ");
