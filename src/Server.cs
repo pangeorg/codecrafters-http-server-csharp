@@ -105,7 +105,7 @@ class Response(StatusCode status, byte[] body, string contentType = "text/plain"
     private string GetHeaders()
     {
         string prefix = $"Content-Type: {ContentType}\r\nContent-Length: {Body.Length}\r\n";
-        if (Encoding == "gzip")
+        if (Encoding.Contains("gzip"))
         {
             prefix += "Content-Encoding: gzip\r\n";
         }
