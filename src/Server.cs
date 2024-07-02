@@ -3,20 +3,22 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.VisualBasic;
-
-// You can use print statements as follows for debugging, they'll be visible when running tests.
-Console.WriteLine("Logs from your program will appear here!");
 
 // Uncomment this block to pass the first stage
 TcpListener server = new(IPAddress.Any, 4221);
 server.Start();
 
-byte[] buffer = new byte[1024];
 while (true)
 {
-    var socket = server.AcceptSocket(); // wait for client
-    socket.Receive(buffer);
+    var client = server.AcceptTcpClient();
+    _ = Task.Run(() => HandleClient(client));
+}
+
+static Task HandleClient(TcpClient client){
+    var stream = client.GetStream();
+    byte[] buffer = new byte[1024];
+    stream.Read(buffer, 0, buffer.Length);
+
     var request = Request.Parse(buffer);
     Response response = request.Target switch
     {
@@ -26,10 +28,13 @@ while (true)
         var echo when Regex.IsMatch(echo, "/echo/.*") => new Response(StatusCode.Ok, request.Target.Split("/")[^1]),
         _ => new Response(StatusCode.NotFound, string.Empty),
     };
+    byte[] response_raw = response.ToBytes();
+    stream.Write(response_raw, 0, response_raw.Length);
 
-    int i = socket.Send(response.ToBytes());
-    string message = Encoding.ASCII.GetString(response.ToBytes());
+    string message = Encoding.ASCII.GetString(response_raw);
     Console.WriteLine("Message Sent /> : " + message);
+    return Task.CompletedTask;
+
 }
 
 enum StatusCode
