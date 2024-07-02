@@ -22,11 +22,15 @@ static Task HandleClient(TcpClient client){
     var request = Request.Parse(buffer);
     Response response = request.Target switch
     {
-        "/" => new Response(StatusCode.Ok, string.Empty),
-        "/index.html" => new Response(StatusCode.Ok, string.Empty),
-        "/user-agent" => request.GetHeader("User-Agent") != null ? new Response(StatusCode.Ok, request.GetHeader("User-Agent")!) : new Response(StatusCode.InternalServerError, string.Empty),
-        var echo when Regex.IsMatch(echo, "/echo/.*") => new Response(StatusCode.Ok, request.Target.Split("/")[^1]),
-        _ => new Response(StatusCode.NotFound, string.Empty),
+        "/" => new Response(StatusCode.Ok, []),
+        "/index.html" => new Response(StatusCode.Ok, []),
+        "/user-agent" => 
+            request.GetHeader("User-Agent") != null ? 
+            new Response(StatusCode.Ok, request.GetHeader("User-Agent")!.ToAsciiBytes()) :
+            new Response(StatusCode.InternalServerError, []),
+        var echo when Regex.IsMatch(echo, "/echo/.*") => new Response(StatusCode.Ok, request.Target.Split("/")[^1].ToAsciiBytes()),
+        var echo when Regex.IsMatch(echo, "/files/.*") => HandleFileRequest(request),
+        _ => new Response(StatusCode.NotFound, []),
     };
     byte[] response_raw = response.ToBytes();
     stream.Write(response_raw, 0, response_raw.Length);
@@ -34,7 +38,16 @@ static Task HandleClient(TcpClient client){
     string message = Encoding.ASCII.GetString(response_raw);
     Console.WriteLine("Message Sent /> : " + message);
     return Task.CompletedTask;
+}
 
+static Response HandleFileRequest(Request request) {
+    string filename = "tmp/" + request.Target.Split("/")[^1];
+    if (File.Exists(filename))
+    {
+        byte[] content = File.ReadAllBytes(filename);
+        return new(StatusCode.Ok, content, contentType: "octet-stream");
+    };
+    return new(StatusCode.NotFound, []);
 }
 
 enum StatusCode
@@ -50,14 +63,15 @@ enum StatusCode
 }
 
 
-class Response(StatusCode status, string body, string contentType = "text/plain", string version = "HTTP/1.1")
+class Response(StatusCode status, byte[] body, string contentType = "text/plain", string version = "HTTP/1.1")
 {
     public StatusCode Status { get; } = status;
-    public string Body { get; } = body;
+    public byte[] Body { get; } = body;
     public string ContentType { get; } = contentType;
     public string Version { get; } = version;
-    public override string ToString() => $"{Version} {(int)Status} {Status.GetDescription()}\r\nContent-Type: {ContentType}\r\nContent-Length: {Body.Length}\r\n\r\n{Body}";
-    public byte[] ToBytes() => Encoding.ASCII.GetBytes(ToString());
+    private string GetPrefix() => $"{Version} {(int)Status} {Status.GetDescription()}\r\nContent-Type: {ContentType}\r\nContent-Length: {Body.Length}\r\n\r\n";
+    public override string ToString() => GetPrefix() + $"{Encoding.ASCII.GetString(Body)}";
+    public byte[] ToBytes() => Encoding.ASCII.GetBytes(GetPrefix()).Concat(Body).ToArray();
 }
 
 class Request(string method, string target, string version)
