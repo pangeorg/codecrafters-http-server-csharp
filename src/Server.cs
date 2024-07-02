@@ -41,7 +41,8 @@ static Task HandleClient(TcpClient client){
 }
 
 static Response HandleFileRequest(Request request) {
-    string filename = "tmp/" + request.Target.Split("/")[^1];
+    var directory = Environment.GetCommandLineArgs()[2];
+    string filename = Path.Combine(directory, request.Target.Split("/")[^1]);
     if (File.Exists(filename))
     {
         byte[] content = File.ReadAllBytes(filename);
