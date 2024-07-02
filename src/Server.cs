@@ -46,7 +46,7 @@ static Response HandleFileRequest(Request request) {
     if (File.Exists(filename))
     {
         byte[] content = File.ReadAllBytes(filename);
-        return new(StatusCode.Ok, content, contentType: "octet-stream");
+        return new(StatusCode.Ok, content, contentType: "application/octet-stream");
     };
     return new(StatusCode.NotFound, []);
 }
