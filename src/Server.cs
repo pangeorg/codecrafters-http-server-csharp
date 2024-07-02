@@ -99,12 +99,13 @@ class Response(StatusCode status, byte[] body, string contentType = "text/plain"
 {
     public StatusCode Status { get; } = status;
     public byte[] Body { get; } = body;
+    private byte[] BodyEncoded { get; } = Compress(body, encoding);
     public string ContentType { get; } = contentType;
     public string Version { get; } = version;
     public string Encoding { get; } = encoding;
     private string GetHeaders()
     {
-        string prefix = $"Content-Type: {ContentType}\r\nContent-Length: {Body.Length}\r\n";
+        string prefix = $"Content-Type: {ContentType}\r\nContent-Length: {BodyEncoded.Length}\r\n";
         if (Encoding.Contains("gzip"))
         {
             prefix += "Content-Encoding: gzip\r\n";
@@ -113,27 +114,27 @@ class Response(StatusCode status, byte[] body, string contentType = "text/plain"
     }
     private string GetPrefix() => $"{Version} {(int)Status} {Status.GetDescription()}\r\n{GetHeaders()}\r\n";
     public override string ToString() => GetPrefix() + $"{System.Text.Encoding.ASCII.GetString(Body)}";
-    public byte[] ToBytes() => [.. System.Text.Encoding.ASCII.GetBytes(GetPrefix()), .. EncodeBody()];
+    public byte[] ToBytes() => [.. System.Text.Encoding.ASCII.GetBytes(GetPrefix()), .. BodyEncoded];
 
-    private byte[] EncodeBody()
+    private static byte[] Compress(byte[] body, string encoding)
     {
-        string[] encodings = Encoding.Split(',');
-        foreach (string encoding in encodings)
+        string[] encodings = encoding.Split(',');
+        foreach (string enc in encodings)
         {
-            switch (encoding)
+            switch (enc)
             {
                 case "gzip":
                     using (var stream = new MemoryStream())
                     {
                         using (var gzip = new GZipStream(stream, CompressionMode.Compress))
                         {
-                            gzip.Write(Body, 0, Body.Length);
+                            gzip.Write(body, 0, body.Length);
                         }
                         return stream.ToArray();
                     }
             }
         }
-        return Body;
+        return body;
     }
 }
 
