@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 
 // You can use print statements as follows for debugging, they'll be visible when running tests.
 Console.WriteLine("Logs from your program will appear here!");
@@ -20,6 +21,7 @@ while (true)
     {
         "/" => new Response(StatusCode.Ok, string.Empty).ToBytes(),
         "/index.html" => new Response(StatusCode.Ok, string.Empty).ToBytes(),
+        var echo when Regex.IsMatch(echo, "/echo/.*") => new Response(StatusCode.Ok, request.Target.Split("/")[^1]).ToBytes(),
         _ => new Response(StatusCode.NotFound, string.Empty).ToBytes(),
     };
     int i = socket.Send(sendBytes);
@@ -37,13 +39,14 @@ enum StatusCode
 }
 
 
-class Response(StatusCode status, string body, string version = "HTTP/1.1")
+class Response(StatusCode status, string body, string contentType = "text/plain", string version = "HTTP/1.1")
 {
     public StatusCode Status { get; } = status;
     public string Body { get; } = body;
+    public string ContentType { get; } = contentType;
     public string Version { get; } = version;
 
-    public override string ToString() => $"{Version} {(int)Status} {Status.GetDescription()}\r\n\r\n{Body}";
+    public override string ToString() => $"{Version} {(int)Status} {Status.GetDescription()}\r\nContent-Type: {ContentType}\r\nContent-Length: {Body.Length}\r\n\r\n{Body}";
     public byte[] ToBytes() => Encoding.ASCII.GetBytes(ToString());
 }
 
