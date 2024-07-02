@@ -41,7 +41,14 @@ static Task HandleClient(TcpClient client){
 }
 
 static Response HandleFileRequest(Request request) {
-    var directory = Environment.GetCommandLineArgs()[2];
+    var args = Environment.GetCommandLineArgs();
+    string directory;
+    if (args.Length == 3) {
+        directory = args[2];
+    }
+    else {
+        directory = "./";
+    }
     string filename = Path.Combine(directory, request.Target.Split("/")[^1]);
     switch (request.Method) {
         case "POST":
@@ -107,13 +114,14 @@ struct Request(string method, string target, string version, byte[] body)
 
     public static Request Parse(byte[] buffer)
     {
-        var requestText = Encoding.ASCII.GetString(buffer);
+        int count = buffer.IndexOf(i => i == 0);
+        var requestText = Encoding.ASCII.GetString(buffer, 0, count);
         var lines = requestText.Split("\r\n");
         var parts = lines[0].Split(" ");
         var method = parts[0];
         var target = parts[1];
         var version = parts[2];
-        var body = lines[^1].ToAsciiBytes();
+        var body = lines[^1].Trim().ToAsciiBytes();
         var request = new Request(method, target, version, body);
         
         for (int i = 1; i < lines.Length - 2; i++) {
@@ -126,4 +134,3 @@ struct Request(string method, string target, string version, byte[] body)
         return request;
     }
 }
-
