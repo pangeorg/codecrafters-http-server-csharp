@@ -47,7 +47,7 @@ static Response HandleFileRequest(Request request) {
         case "POST":
             try {
                 File.WriteAllBytes(filename, request.Body);
-                return new(StatusCode.Ok, []);
+                return new(StatusCode.Created, [], contentType: "application/octet-stream");
             }
             catch (Exception ex) {
                 return new(StatusCode.InternalServerError, ex.Message.ToAsciiBytes());
