@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -28,7 +29,7 @@ static Task HandleClient(TcpClient client){
             request.GetHeader("User-Agent") != null ? 
             new Response(StatusCode.Ok, request.GetHeader("User-Agent")!.ToAsciiBytes()) :
             new Response(StatusCode.InternalServerError, []),
-        var echo when Regex.IsMatch(echo, "/echo/.*") => new Response(StatusCode.Ok, request.Target.Split("/")[^1].ToAsciiBytes()),
+        var echo when Regex.IsMatch(echo, "/echo/.*") => new Response(StatusCode.Ok, request.Target.Split("/")[^1].ToAsciiBytes(), encoding: request.GetHeader("Accept-Encoding") ?? string.Empty),
         var echo when Regex.IsMatch(echo, "/files/.*") => HandleFileRequest(request),
         _ => new Response(StatusCode.NotFound, []),
     };
@@ -87,15 +88,37 @@ enum StatusCode
 }
 
 
-class Response(StatusCode status, byte[] body, string contentType = "text/plain", string version = "HTTP/1.1")
+class Response(StatusCode status, byte[] body, string contentType = "text/plain", string version = "HTTP/1.1", string encoding = "")
 {
     public StatusCode Status { get; } = status;
     public byte[] Body { get; } = body;
     public string ContentType { get; } = contentType;
     public string Version { get; } = version;
-    private string GetPrefix() => $"{Version} {(int)Status} {Status.GetDescription()}\r\nContent-Type: {ContentType}\r\nContent-Length: {Body.Length}\r\n\r\n";
-    public override string ToString() => GetPrefix() + $"{Encoding.ASCII.GetString(Body)}";
-    public byte[] ToBytes() => Encoding.ASCII.GetBytes(GetPrefix()).Concat(Body).ToArray();
+    public string Encoding { get; } = encoding;
+    private string GetHeaders(){
+        string prefix = $"Content-Type: {ContentType}\r\nContent-Length: {Body.Length}\r\n";
+        if (Encoding == "gzip") {
+            prefix += "Content-Encoding: gzip\r\n";
+        }
+        return prefix;
+    }
+    private string GetPrefix() => $"{Version} {(int)Status} {Status.GetDescription()}\r\n{GetHeaders()}\r\n";
+    public override string ToString() => GetPrefix() + $"{System.Text.Encoding.ASCII.GetString(Body)}";
+    public byte[] ToBytes() => [.. System.Text.Encoding.ASCII.GetBytes(GetPrefix()), .. EncodeBody()];
+    
+    private byte[] EncodeBody() {
+        switch (Encoding) {
+            case "gzip":
+                using (var stream = new MemoryStream()) {
+                    using (var gzip = new GZipStream(stream, CompressionMode.Compress)) {
+                        gzip.Write(Body, 0, Body.Length);
+                    }
+                    return stream.ToArray();
+                }
+            default:
+                return Body;
+        }
+    }
 }
 
 struct Request(string method, string target, string version, byte[] body)
