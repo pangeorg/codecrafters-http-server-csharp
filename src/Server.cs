@@ -16,14 +16,12 @@ while (true)
     var socket = server.AcceptSocket(); // wait for client
     socket.Receive(buffer);
     var request = Request.Parse(buffer);
-    byte[] sendBytes;
-    if (request.Target == "/index.html")
+    byte[] sendBytes = request.Target switch
     {
-        sendBytes = new Response(StatusCode.Ok, string.Empty).ToBytes();
-    }
-    else {
-        sendBytes = new Response(StatusCode.NotFound, string.Empty).ToBytes();
-    }
+        "/" => new Response(StatusCode.Ok, string.Empty).ToBytes(),
+        "/index.html" => new Response(StatusCode.Ok, string.Empty).ToBytes(),
+        _ => new Response(StatusCode.NotFound, string.Empty).ToBytes(),
+    };
     int i = socket.Send(sendBytes);
     string message = Encoding.ASCII.GetString(sendBytes);
     Console.WriteLine("Message Sent /> : " + message);
